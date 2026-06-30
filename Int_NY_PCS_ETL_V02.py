@@ -7,6 +7,7 @@ Int_NY_PCS_ETL_V02.ipynb so it can run standalone (and be packaged as a
 .exe with PyInstaller -- see build.ps1).
 """
 
+import configparser
 import ctypes
 import json
 import os
@@ -25,12 +26,70 @@ import urllib3
 # ============================================================
 # CONFIGURATION
 # ============================================================
-# Hardcoded per request. These end up baked into the .exe -- anyone with the
-# file can extract them (e.g. with `strings NY_PCS_ETL.exe`), so treat the
-# .exe itself as a secret and don't share it outside the people who should
-# have this token. Rotate the token in Qualtrics if the .exe is ever leaked.
 
-API_TOKEN = "dZZueEgbaPrCuSTXEtIp2sz0EqlJNxg93jYEod7U"
+# Update this (and rebuild) whenever a new version is cut, so an old,
+# unmaintained .exe doesn't keep running indefinitely with a possibly
+# revoked token.
+EXPIRATION_DATE = date(2027, 1, 30)
+
+
+def check_expiration():
+    """Shows a popup and exits if this build is past its expiration date.
+    Runs before config/token loading on purpose, so an expired .exe never
+    even prompts about a missing config.ini."""
+    if date.today() >= EXPIRATION_DATE:
+        message = (
+            "This version of NY_PCS_ETL has expired (valid through "
+            f"{EXPIRATION_DATE.strftime('%b %d, %Y')}). Please request an "
+            "updated version from Alejandro."
+        )
+        ctypes.windll.user32.MessageBoxW(0, message, "Expired", 0x10)  # MB_ICONERROR
+        sys.exit(0)
+
+
+check_expiration()
+
+
+def get_app_dir():
+    """Folder to look for external files (config.ini) in: the .exe's own
+    folder when frozen by PyInstaller, or this script's folder otherwise.
+    Deliberately NOT the current working directory (the .exe can be
+    launched from anywhere) and NOT sys._MEIPASS (PyInstaller's temp
+    extraction folder, which is wiped after each run)."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def load_api_token():
+    """Reads the Qualtrics API token from config.ini next to the script/exe
+    instead of hardcoding it, so the token isn't baked into the .exe binary."""
+    config_path = os.path.join(get_app_dir(), "config.ini")
+
+    if not os.path.exists(config_path):
+        raise RuntimeError(
+            f"config.ini not found at: {config_path}\n\n"
+            "Create a file named config.ini in that same folder containing:\n\n"
+            "[qualtrics]\n"
+            "api_token = YOUR_TOKEN_HERE"
+        )
+
+    parser = configparser.ConfigParser()
+    parser.read(config_path)
+    token = parser.get("qualtrics", "api_token", fallback="").strip()
+
+    if not token:
+        raise RuntimeError(
+            f"config.ini at {config_path} is missing the api_token value.\n\n"
+            "Add this to config.ini:\n\n"
+            "[qualtrics]\n"
+            "api_token = YOUR_TOKEN_HERE"
+        )
+
+    return token
+
+
+API_TOKEN = load_api_token()
 DATA_CENTER = "iad1"
 SURVEY_ID = "SV_efytbaOtuAX2uF0"
 

@@ -72,9 +72,23 @@ if ($LASTEXITCODE -ne 0) {
 New-Item -ItemType Directory -Force -Path "dist" | Out-Null
 Copy-Item (Join-Path $distPath "NY_PCS_ETL.exe") "dist\NY_PCS_ETL.exe" -Force
 
+# The exe reads its Qualtrics token from config.ini next to it at runtime
+# (see load_api_token() / get_app_dir() in Int_NY_PCS_ETL_V02.py) rather than
+# having it baked in. Copy the local config.ini into dist\ too, so dist\ is
+# a ready-to-distribute folder: NY_PCS_ETL.exe + config.ini.
+$configSource = "config.ini"
+if (Test-Path $configSource) {
+    Copy-Item $configSource "dist\config.ini" -Force
+    if ((Get-Content $configSource -Raw) -match "YOUR_TOKEN_HERE") {
+        Write-Warning "dist\config.ini still has the placeholder token (YOUR_TOKEN_HERE) -- edit it with the real Qualtrics API token before distributing."
+    }
+} else {
+    Write-Warning "config.ini not found in this folder -- copy config.ini.example to config.ini, fill in the real Qualtrics API token, then re-run this script (or copy it into dist\ manually) before distributing."
+}
+
 Write-Host ""
 Write-Host "Done. Executable is at dist\NY_PCS_ETL.exe"
 $sizeMB = [math]::Round((Get-Item "dist\NY_PCS_ETL.exe").Length / 1MB, 1)
 Write-Host "Size: $sizeMB MB"
-Write-Host "Credentials are hardcoded in Int_NY_PCS_ETL_V02.py and now baked into this exe."
-Write-Host "No .env file needed -- the exe runs standalone. See HOW_TO_RUN.txt for details."
+Write-Host "The exe reads its Qualtrics token from config.ini next to it (not baked in)."
+Write-Host "Distribute dist\NY_PCS_ETL.exe + dist\config.ini + HOW_TO_RUN.txt together. See HOW_TO_RUN.txt for details."

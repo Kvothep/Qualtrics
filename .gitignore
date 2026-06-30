@@ -151,6 +151,10 @@ activemq-data/
 .env
 .envrc
 .venv
+
+# Qualtrics API token -- real config lives only on machines that run the
+# .exe; only config.ini.example (placeholder) is tracked in git.
+config.ini
 env/
 venv/
 ENV/
