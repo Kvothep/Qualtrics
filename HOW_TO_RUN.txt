@@ -1,0 +1,120 @@
+NY POST-CALL SURVEY ETL — HOW TO RUN AND HOW TO BUILD THE .EXE
+================================================================
+
+Source script : Int_NY_PCS_ETL_V02.py
+Built exe     : dist\NY_PCS_ETL.exe  (created by build.ps1)
+
+WARNING ABOUT CREDENTIALS
+--------------------------
+The Qualtrics API token, data center, and survey ID are hardcoded directly
+inside Int_NY_PCS_ETL_V02.py (top of the file, "CONFIGURATION" section).
+That means:
+  - They are baked into the .exe. Anyone with the .exe file can extract the
+    token from it (e.g. by running `strings NY_PCS_ETL.exe` or opening it in
+    a hex editor) even without the source code.
+  - Treat dist\NY_PCS_ETL.exe itself as a secret. Only share it with people
+    who should have this Qualtrics token. Do not upload it anywhere public
+    (email to a wide list, public file share, GitHub, etc.).
+  - If the .exe is ever lost, leaked, or shared with the wrong person,
+    rotate (regenerate) the API token in Qualtrics immediately, then update
+    the script and rebuild.
+
+
+1. RUNNING THE PIPELINE (no build needed)
+------------------------------------------
+You can run the ETL directly with Python — useful for testing changes
+before building a new .exe.
+
+  1. Open a terminal in this folder.
+  2. Install dependencies (one time, or after requirements.txt changes):
+
+       C:\Users\aleja\anaconda3\envs\automate\python.exe -m pip install -r requirements.txt
+
+  3. Run it:
+
+       C:\Users\aleja\anaconda3\envs\automate\python.exe Int_NY_PCS_ETL_V02.py
+
+What it does:
+  - Figures out today's "effective date" (Mondays roll back to last Saturday,
+    since there's no Sunday report).
+  - Looks in the network share for that date's file, accepting either:
+       NY Feedback Daily.xls
+       NY Feedback Daily.xlsx
+  - Cleans/validates it, saves a copy to the SharePoint/OneDrive folder
+    (falls back to the current folder if that path isn't synced locally),
+    formats it for Qualtrics, and uploads it via the Import Responses API.
+  - Shows a Windows popup on success or failure (auto-closes after 10s).
+
+
+2. RUNNING THE BUILT .EXE
+---------------------------
+  1. Double-click dist\NY_PCS_ETL.exe (or schedule it — see section 4).
+  2. No console window appears (it runs silently in the background).
+  3. Wait for the popup: "Upload successful" or an error message.
+
+The .exe is fully standalone — it does NOT need Python installed on the
+machine it runs on, and does NOT need a .env file or any external config.
+Everything (including credentials) is embedded in the .exe itself.
+
+
+3. BUILDING / REBUILDING THE .EXE
+------------------------------------
+Whenever you edit Int_NY_PCS_ETL_V02.py (e.g. to update the API token, fix a
+bug, or change logic), rebuild the exe:
+
+  1. Edit the CONFIGURATION section in Int_NY_PCS_ETL_V02.py if you need to
+     change credentials:
+
+       API_TOKEN   = "your_new_token_here"
+       DATA_CENTER = "iad1"
+       SURVEY_ID   = "SV_xxxxxxxxxxxxxxx"
+
+  2. Open a terminal in this folder and run:
+
+       .\build.ps1
+
+  3. Wait for it to finish (a few minutes — PyInstaller has to repackage
+     pandas/numpy). When done it prints:
+
+       Done. Executable is at dist\NY_PCS_ETL.exe
+       Size: ~250 MB
+
+What build.ps1 does under the hood:
+  - Installs/updates the packages in requirements.txt using the "automate"
+    conda environment (C:\Users\aleja\anaconda3\envs\automate\python.exe).
+  - Runs PyInstaller with --onefile --noconsole, building in a LOCAL temp
+    folder (not inside OneDrive) because OneDrive's sync agent locks the
+    many small files PyInstaller writes mid-build and crashes the build.
+  - Excludes ~25 unrelated packages that happen to be installed in the
+    "automate" conda env (matplotlib, scipy, Jupyter, PyQt5, dask, etc.) so
+    the exe doesn't balloon to 600+ MB for no reason.
+  - Copies the final NY_PCS_ETL.exe into dist\ in this project folder.
+
+If you ever see a PermissionError mentioning OneDrive paths during a build,
+it's the same OneDrive-locking issue — just re-run .\build.ps1, it usually
+succeeds on retry, or close OneDrive temporarily.
+
+
+4. SCHEDULING IT TO RUN AUTOMATICALLY (optional)
+---------------------------------------------------
+To run this daily without manually double-clicking it, use Windows Task
+Scheduler:
+  1. Open Task Scheduler -> Create Task.
+  2. Trigger: Daily, at whatever time the source file is expected to land.
+  3. Action: Start a program -> point it at the full path to
+     dist\NY_PCS_ETL.exe.
+  4. Under Settings, consider "Run whether user is logged on or not" if this
+     needs to run unattended (note: this changes whether the popup is
+     visible to anyone).
+
+
+5. CHANGING THE SOURCE FILE NAME / FOLDER PATTERN
+----------------------------------------------------
+The network path and expected filename are built in main() inside
+Int_NY_PCS_ETL_V02.py:
+
+  \\clornas01\DIGITAL_COE_CS_DATA\data_delivery\qualtrics\NY_post_call_survey
+    \daily\{year}\{month name}\{day}\NY Feedback Daily.xls  (or .xlsx)
+
+If the upstream system ever changes the filename or folder layout, update
+the `source_folder` and `resolve_input_file(...)` call in main() and rebuild.

@@ -1,0 +1,6 @@
+pandas
+requests
+urllib3
+pyinstaller
+xlrd>=2.0.1
+openpyxl
