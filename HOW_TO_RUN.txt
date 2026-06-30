@@ -95,7 +95,51 @@ it's the same OneDrive-locking issue — just re-run .\build.ps1, it usually
 succeeds on retry, or close OneDrive temporarily.
 
 
-4. SCHEDULING IT TO RUN AUTOMATICALLY (optional)
+4. BUILDING THE .EXE ON A DIFFERENT MACHINE (e.g. a corporate laptop)
+-------------------------------------------------------------------------
+The built .exe is ~250-300 MB, which is often too big to email or transfer
+directly. Instead of moving the .exe, move the source (it's tiny) and build
+it locally on the other machine. The git repo already has everything needed
+(Int_NY_PCS_ETL_V02.py, requirements.txt, build.ps1) — the .exe itself is
+gitignored, so it's never pushed to git.
+
+Prerequisites on the other machine:
+  - Git (to clone/pull the repo) — likely already available if you can
+    already reach your git remote from there.
+  - Python 3.x with pip on PATH. Check with:
+
+       python --version
+
+    If that fails, install Python from https://python.org (check "Add
+    Python to PATH" during install) or via your corporate software center.
+    You do NOT need the same "automate" conda environment used on the
+    original machine — build.ps1 will auto-detect whatever Python it finds
+    on PATH if the original conda path doesn't exist on this machine.
+
+Steps:
+  1. Clone or pull the repo on the corporate laptop:
+
+       git clone <your-repo-url>
+       (or, if already cloned: git pull)
+
+  2. Open a terminal in that folder and run:
+
+       .\build.ps1
+
+     This will pip install everything in requirements.txt (needs internet /
+     corporate PyPI access — if your company blocks pip via a proxy, you'll
+     need that proxy configured or an internal package mirror) and then
+     build dist\NY_PCS_ETL.exe locally.
+
+  3. The new dist\NY_PCS_ETL.exe is now built directly on that laptop — no
+     need to transfer the big file at all.
+
+Note: the corporate laptop will need network access to the source share
+(\\clornas01\...) to actually RUN the pipeline afterward, same as any other
+machine.
+
+
+5. SCHEDULING IT TO RUN AUTOMATICALLY (optional)
 ---------------------------------------------------
 To run this daily without manually double-clicking it, use Windows Task
 Scheduler:
@@ -108,7 +152,7 @@ Scheduler:
      visible to anyone).
 
 
-5. CHANGING THE SOURCE FILE NAME / FOLDER PATTERN
+6. CHANGING THE SOURCE FILE NAME / FOLDER PATTERN
 ----------------------------------------------------
 The network path and expected filename are built in main() inside
 Int_NY_PCS_ETL_V02.py:
